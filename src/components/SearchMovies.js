@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { searchMovies } from '../api/tmdb';
+import ReviewForm from '../components/ReviewForm'; // ✅ Import the ReviewForm
 
 export default function SearchMovies() {
   const [query, setQuery] = useState('');
@@ -22,6 +23,11 @@ export default function SearchMovies() {
     }
   };
 
+  const handleReviewSubmitted = () => {
+    // Placeholder — you could reload reviews if you choose to show them here
+    console.log('Review submitted!');
+  };
+
   return (
     <div>
       <h2>Search Movies</h2>
@@ -42,9 +48,12 @@ export default function SearchMovies() {
       <div>
         {results.length === 0 && !loading && <p>No results found</p>}
         {results.map((movie) => (
-          <div key={movie.id}>
+          <div key={movie.id} style={{ border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
             <h4>{movie.title}</h4>
             <p>{movie.overview || 'No description available.'}</p>
+
+            {/* ✅ Add ReviewForm for each movie */}
+            <ReviewForm movieId={movie.id} onReviewSubmitted={handleReviewSubmitted} />
           </div>
         ))}
       </div>
