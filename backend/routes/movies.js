@@ -2,52 +2,43 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
+const { getRecommendationsFromGenres } = require('../tmdb'); // 👈 Import helper function
 
-// Get user watchlist
-router.get('/watchlist', auth, async (req, res) => {
+// ⭐ Personalized Recommendations Route
+router.get('/recommendations', auth, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
-    res.json({ watchlist: user.watchlist });
+
+    if (!user || !Array.isArray(user.watchlist)) {
+      return res.status(400).json({ message: 'No watchlist found for user.' });
+    }
+
+    const genreCounts = {};
+
+    // Aggregate genre IDs from user's watchlist
+    user.watchlist.forEach((movie) => {
+      if (movie.genre_ids && Array.isArray(movie.genre_ids)) {
+        movie.genre_ids.forEach((genreId) => {
+          genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+        });
+      }
+    });
+
+    const topGenres = Object.entries(genreCounts)
+      .sort((a, b) => b[1] - a[1])      // sort by frequency
+      .slice(0, 3)                      // take top 3 genres
+      .map(([id]) => parseInt(id));     // extract genre IDs
+
+    if (topGenres.length === 0) {
+      return res.status(200).json({ recommendations: [] });
+    }
+
+    const recommendations = await getRecommendationsFromGenres(topGenres);
+    res.json({ recommendations });
+
   } catch (err) {
-    res.status(500).json({ message: 'Server error.' });
-  }
-});
-
-// Add movie to watchlist
-router.post('/watchlist', auth, async (req, res) => {
-  try {
-    const { movie } = req.body; // movie = { id, title, poster_path, ... }
-
-    if (!movie || !movie.id)
-      return res.status(400).json({ message: 'Movie data is required.' });
-
-    const user = await User.findByPk(req.user.id);
-    const alreadyInList = user.watchlist.find(m => m.id === movie.id);
-
-    if (alreadyInList)
-      return res.status(400).json({ message: 'Movie already in watchlist.' });
-
-    user.watchlist.push(movie);
-    await user.save();
-
-    res.json({ watchlist: user.watchlist });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error.' });
-  }
-});
-
-// Remove movie from watchlist
-router.delete('/watchlist/:movieId', auth, async (req, res) => {
-  try {
-    const movieId = parseInt(req.params.movieId, 10);
-
-    const user = await User.findByPk(req.user.id);
-    user.watchlist = user.watchlist.filter(m => m.id !== movieId);
-    await user.save();
-
-    res.json({ watchlist: user.watchlist });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error.' });
+    console.error('Recommendation Error:', err);
+    res.status(500).json({ message: 'Failed to fetch recommendations.' });
   }
 });
 
